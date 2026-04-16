@@ -1,0 +1,30 @@
+# Development compose — only runs MySQL.
+# Run the frontend and backend directly on your machine so you get hot reload.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Then in separate terminals:
+#   cd backend/planner-api && air          (or: go run ./cmd/server)
+#   cd frontend && npm run dev
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: planahead-mysql-dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+      MYSQL_DATABASE: degree_tracker
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-dev-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mysql-dev-data:

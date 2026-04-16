@@ -1,0 +1,20 @@
+# Air — live reload for Go
+# Install: go install github.com/air-verse/air@latest
+# Run:     air   (from backend/planner-api/)
+
+root = "."
+tmp_dir = ".air_tmp"
+
+[build]
+  cmd = "go build -o .air_tmp/planner-api ./cmd/server"
+  bin = ".air_tmp/planner-api"
+  include_ext = ["go"]
+  exclude_dir  = [".air_tmp", "vendor"]
+  delay = 500
+
+[log]
+  time = false
+
+[color]
+  build = "yellow"
+  runner = "green"

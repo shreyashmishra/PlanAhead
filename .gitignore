@@ -9,3 +9,6 @@ frontend/.env.local
 node_modules/
 frontend/.next/
 frontend/out/
+
+# Air (Go hot-reload) build artefacts
+backend/planner-api/.air_tmp/
