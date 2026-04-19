@@ -6,6 +6,12 @@ interface ElectiveGroupCardProps {
   onSelectOption: (courseCode: string) => void;
   onOptionStatusChange: (courseCode: string, status: CourseStatus) => void;
   onClearSelection: () => void;
+  getOptionPlanningState: (courseCode: string) => {
+    planningLocked: boolean;
+    planningHint: string | null;
+    selectionLocked: boolean;
+  };
+  groupPlanningLocked?: boolean;
 }
 
 export function ElectiveGroupCard({
@@ -13,6 +19,8 @@ export function ElectiveGroupCard({
   onSelectOption,
   onOptionStatusChange,
   onClearSelection,
+  getOptionPlanningState,
+  groupPlanningLocked = false,
 }: ElectiveGroupCardProps) {
   return (
     <section className="rounded-[1.9rem] border border-dashed border-teal/20 bg-white/75 p-5">
@@ -30,6 +38,7 @@ export function ElectiveGroupCard({
         <button
           type="button"
           onClick={onClearSelection}
+          disabled={groupPlanningLocked}
           className="rounded-full border border-ink/10 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink/60 transition hover:border-rose/20 hover:text-rose"
         >
           Clear choice
@@ -37,15 +46,21 @@ export function ElectiveGroupCard({
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
-        {group.options.map((option) => (
-          <CourseCard
-            key={option.code}
-            course={option}
-            variant="elective"
-            onSelect={() => onSelectOption(option.code)}
-            onStatusChange={(status) => onOptionStatusChange(option.code, status)}
-          />
-        ))}
+        {group.options.map((option) => {
+          const planningState = getOptionPlanningState(option.code);
+          return (
+            <CourseCard
+              key={option.code}
+              course={option}
+              variant="elective"
+              onSelect={() => onSelectOption(option.code)}
+              onStatusChange={(status) => onOptionStatusChange(option.code, status)}
+              planningLocked={planningState.planningLocked}
+              planningHint={planningState.planningHint}
+              selectionLocked={planningState.selectionLocked}
+            />
+          );
+        })}
       </div>
     </section>
   );

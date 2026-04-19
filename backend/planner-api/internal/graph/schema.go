@@ -89,6 +89,7 @@ type RoadmapCourse {
 	status: String!
 	prerequisitesMet: Boolean!
 	prerequisiteMessage: String
+	prerequisiteCourseCodes: [String!]!
 	notes: String
 	isSelected: Boolean!
 }

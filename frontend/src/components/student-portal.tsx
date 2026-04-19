@@ -627,6 +627,7 @@ export function StudentPortal() {
               {viewMode === "board" ? (
                 <RoadmapBoard
                   roadmap={roadmap}
+                  progressSnapshot={progress}
                   onCourseStatusChange={handleCourseStatusChange}
                   onElectiveSelect={handleElectiveSelect}
                   onElectiveStatusChange={handleElectiveStatusChange}

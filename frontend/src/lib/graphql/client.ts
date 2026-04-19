@@ -132,6 +132,7 @@ export async function fetchRoadmap(
                 status
                 prerequisitesMet
                 prerequisiteMessage
+                prerequisiteCourseCodes
                 notes
                 isSelected
               }
@@ -155,6 +156,7 @@ export async function fetchRoadmap(
                   status
                   prerequisitesMet
                   prerequisiteMessage
+                  prerequisiteCourseCodes
                   notes
                   isSelected
                 }

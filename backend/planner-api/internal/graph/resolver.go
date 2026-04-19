@@ -162,7 +162,7 @@ func (r *authPayloadResolver) StudentName() string { return r.item.StudentName }
 func (r *authPayloadResolver) ExternalKey() string { return r.item.ExternalKey }
 
 type progressInputResolverArgs struct {
-	CourseStatuses     *[]struct {
+	CourseStatuses *[]struct {
 		CourseCode string
 		Status     string
 	}
@@ -212,12 +212,14 @@ func (r *programResolver) UniversityCode() string { return r.item.UniversityCode
 
 type roadmapResolver struct{ item model.EvaluatedRoadmap }
 
-func (r *roadmapResolver) UniversityCode() string             { return r.item.UniversityCode }
-func (r *roadmapResolver) ProgramCode() string                { return r.item.ProgramCode }
-func (r *roadmapResolver) ProgramName() string                { return r.item.ProgramName }
-func (r *roadmapResolver) Degree() string                     { return r.item.Degree }
-func (r *roadmapResolver) Description() string                { return r.item.Description }
-func (r *roadmapResolver) Summary() *requirementSummaryResolver { return &requirementSummaryResolver{item: r.item.Summary} }
+func (r *roadmapResolver) UniversityCode() string { return r.item.UniversityCode }
+func (r *roadmapResolver) ProgramCode() string    { return r.item.ProgramCode }
+func (r *roadmapResolver) ProgramName() string    { return r.item.ProgramName }
+func (r *roadmapResolver) Degree() string         { return r.item.Degree }
+func (r *roadmapResolver) Description() string    { return r.item.Description }
+func (r *roadmapResolver) Summary() *requirementSummaryResolver {
+	return &requirementSummaryResolver{item: r.item.Summary}
+}
 func (r *roadmapResolver) Terms() []*termRoadmapResolver {
 	result := make([]*termRoadmapResolver, 0, len(r.item.Terms))
 	for _, term := range r.item.Terms {
@@ -228,23 +230,31 @@ func (r *roadmapResolver) Terms() []*termRoadmapResolver {
 
 type requirementSummaryResolver struct{ item model.RequirementSummary }
 
-func (r *requirementSummaryResolver) TotalRequirements() int32      { return r.item.TotalRequirements }
-func (r *requirementSummaryResolver) CompletedRequirements() int32  { return r.item.CompletedRequirements }
-func (r *requirementSummaryResolver) InProgressRequirements() int32 { return r.item.InProgressRequirements }
-func (r *requirementSummaryResolver) PlannedRequirements() int32    { return r.item.PlannedRequirements }
-func (r *requirementSummaryResolver) RemainingRequirements() int32  { return r.item.RemainingRequirements }
-func (r *requirementSummaryResolver) SelectedElectives() int32      { return r.item.SelectedElectives }
-func (r *requirementSummaryResolver) CompletionPercentage() float64 { return r.item.CompletionPercentage }
+func (r *requirementSummaryResolver) TotalRequirements() int32 { return r.item.TotalRequirements }
+func (r *requirementSummaryResolver) CompletedRequirements() int32 {
+	return r.item.CompletedRequirements
+}
+func (r *requirementSummaryResolver) InProgressRequirements() int32 {
+	return r.item.InProgressRequirements
+}
+func (r *requirementSummaryResolver) PlannedRequirements() int32 { return r.item.PlannedRequirements }
+func (r *requirementSummaryResolver) RemainingRequirements() int32 {
+	return r.item.RemainingRequirements
+}
+func (r *requirementSummaryResolver) SelectedElectives() int32 { return r.item.SelectedElectives }
+func (r *requirementSummaryResolver) CompletionPercentage() float64 {
+	return r.item.CompletionPercentage
+}
 
 type termRoadmapResolver struct{ item model.EvaluatedTerm }
 
-func (r *termRoadmapResolver) Code() string           { return r.item.Code }
-func (r *termRoadmapResolver) Label() string          { return r.item.Label }
-func (r *termRoadmapResolver) Year() int32            { return r.item.Year }
-func (r *termRoadmapResolver) Season() string         { return string(r.item.Season) }
-func (r *termRoadmapResolver) Sequence() int32        { return r.item.Sequence }
-func (r *termRoadmapResolver) CompletedCount() int32  { return r.item.CompletedCount }
-func (r *termRoadmapResolver) TotalCount() int32      { return r.item.TotalCount }
+func (r *termRoadmapResolver) Code() string          { return r.item.Code }
+func (r *termRoadmapResolver) Label() string         { return r.item.Label }
+func (r *termRoadmapResolver) Year() int32           { return r.item.Year }
+func (r *termRoadmapResolver) Season() string        { return string(r.item.Season) }
+func (r *termRoadmapResolver) Sequence() int32       { return r.item.Sequence }
+func (r *termRoadmapResolver) CompletedCount() int32 { return r.item.CompletedCount }
+func (r *termRoadmapResolver) TotalCount() int32     { return r.item.TotalCount }
 func (r *termRoadmapResolver) Requirements() []*termRequirementResolver {
 	result := make([]*termRequirementResolver, 0, len(r.item.Requirements))
 	for _, requirement := range r.item.Requirements {
@@ -253,10 +263,12 @@ func (r *termRoadmapResolver) Requirements() []*termRequirementResolver {
 	return result
 }
 
-type termRequirementResolver struct{ item model.EvaluatedTermRequirement }
+type termRequirementResolver struct {
+	item model.EvaluatedTermRequirement
+}
 
-func (r *termRequirementResolver) Kind() string      { return string(r.item.Kind) }
-func (r *termRequirementResolver) Sequence() int32   { return r.item.Sequence }
+func (r *termRequirementResolver) Kind() string    { return string(r.item.Kind) }
+func (r *termRequirementResolver) Sequence() int32 { return r.item.Sequence }
 func (r *termRequirementResolver) Course() *roadmapCourseResolver {
 	if r.item.Course == nil {
 		return nil
@@ -280,21 +292,24 @@ func (r *roadmapCourseResolver) Subject() *string             { return r.item.Su
 func (r *roadmapCourseResolver) Status() string               { return string(r.item.Status) }
 func (r *roadmapCourseResolver) PrerequisitesMet() bool       { return r.item.PrerequisitesMet }
 func (r *roadmapCourseResolver) PrerequisiteMessage() *string { return r.item.PrerequisiteMessage }
-func (r *roadmapCourseResolver) Notes() *string               { return r.item.Notes }
-func (r *roadmapCourseResolver) IsSelected() bool             { return r.item.IsSelected }
+func (r *roadmapCourseResolver) PrerequisiteCourseCodes() []string {
+	return r.item.PrerequisiteCourseCodes
+}
+func (r *roadmapCourseResolver) Notes() *string   { return r.item.Notes }
+func (r *roadmapCourseResolver) IsSelected() bool { return r.item.IsSelected }
 
 type electiveGroupResolver struct{ item model.EvaluatedGroup }
 
-func (r *electiveGroupResolver) Code() string               { return r.item.Code }
-func (r *electiveGroupResolver) Title() string              { return r.item.Title }
-func (r *electiveGroupResolver) Description() string        { return r.item.Description }
-func (r *electiveGroupResolver) Kind() string               { return string(r.item.Kind) }
-func (r *electiveGroupResolver) MinSelections() int32       { return r.item.MinSelections }
-func (r *electiveGroupResolver) MaxSelections() int32       { return r.item.MaxSelections }
+func (r *electiveGroupResolver) Code() string                { return r.item.Code }
+func (r *electiveGroupResolver) Title() string               { return r.item.Title }
+func (r *electiveGroupResolver) Description() string         { return r.item.Description }
+func (r *electiveGroupResolver) Kind() string                { return string(r.item.Kind) }
+func (r *electiveGroupResolver) MinSelections() int32        { return r.item.MinSelections }
+func (r *electiveGroupResolver) MaxSelections() int32        { return r.item.MaxSelections }
 func (r *electiveGroupResolver) SelectedCourseCode() *string { return r.item.SelectedCourseCode }
-func (r *electiveGroupResolver) Status() string             { return string(r.item.Status) }
-func (r *electiveGroupResolver) IsSatisfied() bool          { return r.item.IsSatisfied }
-func (r *electiveGroupResolver) Notes() *string             { return r.item.Notes }
+func (r *electiveGroupResolver) Status() string              { return string(r.item.Status) }
+func (r *electiveGroupResolver) IsSatisfied() bool           { return r.item.IsSatisfied }
+func (r *electiveGroupResolver) Notes() *string              { return r.item.Notes }
 func (r *electiveGroupResolver) Options() []*roadmapCourseResolver {
 	result := make([]*roadmapCourseResolver, 0, len(r.item.Options))
 	for _, option := range r.item.Options {

@@ -21,6 +21,7 @@ var (
 	whitespacePattern          = regexp.MustCompile(`\s+`)
 	// Matches academic term labels like "1A Term", "2B", "Term 3A", "1A - Fall"
 	academicTermPattern = regexp.MustCompile(`(?i)\b([1-9])\s*([AB])\b`)
+	courseCodePattern   = regexp.MustCompile(`\b([A-Z]{2,5})\s*([0-9]{2,3}[A-Z]?)\b`)
 )
 
 type CourseFetcher func(ctx context.Context, courseID string) (*CourseDetail, error)
@@ -250,6 +251,7 @@ func (p *parserState) courseRequirement(ctx context.Context, ref courseRef, sequ
 	}
 
 	var noteParts []string
+	prerequisites := make([]model.PrerequisiteDefinition, 0)
 	detail, err := p.loadCourse(ctx, ref.ID)
 	if err == nil && detail != nil {
 		course.Code = formatCourseCode(firstNonEmpty(detail.CatalogCourseID, ref.Code))
@@ -265,9 +267,11 @@ func (p *parserState) courseRequirement(ctx context.Context, ref courseRef, sequ
 		}
 		if prerequisiteText := htmlToText(detail.Prerequisites); prerequisiteText != "" {
 			noteParts = append(noteParts, "Official prerequisite: "+prerequisiteText)
+			prerequisites = append(prerequisites, parseCoursePrerequisites(prerequisiteText, false)...)
 		}
 		if corequisiteText := htmlToText(detail.Corequisites); corequisiteText != "" {
 			noteParts = append(noteParts, "Official corequisite: "+corequisiteText)
+			prerequisites = append(prerequisites, parseCoursePrerequisites(corequisiteText, true)...)
 		}
 		if antirequisiteText := htmlToText(detail.Antirequisites); antirequisiteText != "" {
 			noteParts = append(noteParts, "Official antirequisite: "+antirequisiteText)
@@ -281,12 +285,42 @@ func (p *parserState) courseRequirement(ctx context.Context, ref courseRef, sequ
 	}
 
 	return model.CourseRequirementDefinition{
-		Code:     course.Code,
-		Course:   course,
-		Sequence: sequence,
-		Notes:    notes,
-		Kind:     model.RequirementKindCourse,
+		Code:          course.Code,
+		Course:        course,
+		Sequence:      sequence,
+		Notes:         notes,
+		Prerequisites: prerequisites,
+		Kind:          model.RequirementKindCourse,
 	}
+}
+
+func parseCoursePrerequisites(text string, isCorequisite bool) []model.PrerequisiteDefinition {
+	matches := courseCodePattern.FindAllStringSubmatch(strings.ToUpper(text), -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	result := make([]model.PrerequisiteDefinition, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+
+		courseCode := formatCourseCode(match[1] + match[2])
+		if _, exists := seen[courseCode]; exists {
+			continue
+		}
+
+		seen[courseCode] = struct{}{}
+		result = append(result, model.PrerequisiteDefinition{
+			CourseCode:    courseCode,
+			IsCorequisite: isCorequisite,
+		})
+	}
+
+	return result
 }
 
 func (p *parserState) syntheticRequirement(text string, sequence int32) model.TermRequirementDefinition {
@@ -313,7 +347,6 @@ func (p *parserState) syntheticRequirement(text string, sequence int32) model.Te
 		},
 	}
 }
-
 
 func (p *parserState) loadCourse(ctx context.Context, courseID string) (*CourseDetail, error) {
 	if courseID == "" {

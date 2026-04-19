@@ -9,15 +9,15 @@ import (
 )
 
 type ProgramService struct {
-	catalogRepo  *repository.CatalogRepository
-	studentRepo  *repository.StudentRepository
+	catalogRepo       *repository.CatalogRepository
+	studentRepo       *repository.StudentRepository
 	defaultStudentKey string
 }
 
 func NewProgramService(catalogRepo *repository.CatalogRepository, studentRepo *repository.StudentRepository, defaultStudentKey string) *ProgramService {
 	return &ProgramService{
-		catalogRepo:  catalogRepo,
-		studentRepo:  studentRepo,
+		catalogRepo:       catalogRepo,
+		studentRepo:       studentRepo,
 		defaultStudentKey: defaultStudentKey,
 	}
 }
@@ -218,16 +218,17 @@ func evaluateCourse(requirement model.CourseRequirementDefinition, progress mode
 
 	prerequisitesMet, prerequisiteMessage := evaluatePrerequisites(requirement.Prerequisites, progress.CourseStatuses)
 	return model.EvaluatedCourse{
-		Code:                requirement.Course.Code,
-		Title:               requirement.Course.Title,
-		Credits:             requirement.Course.Credits,
-		Description:         requirement.Course.Description,
-		Subject:             requirement.Course.Subject,
-		Status:              status,
-		PrerequisitesMet:    prerequisitesMet,
-		PrerequisiteMessage: prerequisiteMessage,
-		Notes:               requirement.Notes,
-		IsSelected:          isSelected,
+		Code:                    requirement.Course.Code,
+		Title:                   requirement.Course.Title,
+		Credits:                 requirement.Course.Credits,
+		Description:             requirement.Course.Description,
+		Subject:                 requirement.Course.Subject,
+		Status:                  status,
+		PrerequisitesMet:        prerequisitesMet,
+		PrerequisiteMessage:     prerequisiteMessage,
+		PrerequisiteCourseCodes: prerequisiteCourseCodes(requirement.Prerequisites),
+		Notes:                   requirement.Notes,
+		IsSelected:              isSelected,
 	}
 }
 
@@ -309,6 +310,24 @@ func evaluatePrerequisites(prerequisites []model.PrerequisiteDefinition, courseS
 	}
 	message += " before this course."
 	return false, &message
+}
+
+func prerequisiteCourseCodes(prerequisites []model.PrerequisiteDefinition) []string {
+	result := make([]string, 0, len(prerequisites))
+	seen := make(map[string]struct{}, len(prerequisites))
+
+	for _, prerequisite := range prerequisites {
+		if prerequisite.CourseCode == "" {
+			continue
+		}
+		if _, ok := seen[prerequisite.CourseCode]; ok {
+			continue
+		}
+		seen[prerequisite.CourseCode] = struct{}{}
+		result = append(result, prerequisite.CourseCode)
+	}
+
+	return result
 }
 
 func summarizeRequirementStatuses(statuses []model.CourseStatus, selectedElectives int32) model.RequirementSummary {

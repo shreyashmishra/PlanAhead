@@ -69,15 +69,15 @@ type CourseRequirementDefinition struct {
 }
 
 type ElectiveGroupDefinition struct {
-	Code               string
-	Title              string
-	Description        string
-	Kind               RequirementGroupKind
-	MinSelections      int32
-	MaxSelections      int32
-	Sequence           int32
-	Options            []CourseRequirementDefinition
-	Notes              *string
+	Code          string
+	Title         string
+	Description   string
+	Kind          RequirementGroupKind
+	MinSelections int32
+	MaxSelections int32
+	Sequence      int32
+	Options       []CourseRequirementDefinition
+	Notes         *string
 }
 
 type TermRequirementDefinition struct {
@@ -111,16 +111,17 @@ type ProgressSnapshot struct {
 }
 
 type EvaluatedCourse struct {
-	Code                string
-	Title               string
-	Credits             float64
-	Description         *string
-	Subject             *string
-	Status              CourseStatus
-	PrerequisitesMet    bool
-	PrerequisiteMessage *string
-	Notes               *string
-	IsSelected          bool
+	Code                    string
+	Title                   string
+	Credits                 float64
+	Description             *string
+	Subject                 *string
+	Status                  CourseStatus
+	PrerequisitesMet        bool
+	PrerequisiteMessage     *string
+	PrerequisiteCourseCodes []string
+	Notes                   *string
+	IsSelected              bool
 }
 
 type EvaluatedGroup struct {

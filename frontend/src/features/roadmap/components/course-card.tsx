@@ -6,6 +6,9 @@ interface CourseCardProps {
   variant: "required" | "elective";
   onStatusChange: (status: CourseStatus) => void;
   onSelect?: () => void;
+  planningLocked?: boolean;
+  planningHint?: string | null;
+  selectionLocked?: boolean;
 }
 
 const statusOptions: Array<{ value: CourseStatus; label: string }> = [
@@ -26,6 +29,9 @@ export function CourseCard({
   variant,
   onStatusChange,
   onSelect,
+  planningLocked = false,
+  planningHint = null,
+  selectionLocked = false,
 }: CourseCardProps) {
   return (
     <article
@@ -60,11 +66,13 @@ export function CourseCard({
           <button
             type="button"
             onClick={onSelect}
+            disabled={selectionLocked}
             className={cn(
               "rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition",
               course.isSelected
                 ? "bg-teal text-white"
                 : "border border-teal/20 bg-white text-teal hover:bg-teal/5",
+              selectionLocked && "cursor-not-allowed border-ink/10 bg-ink/5 text-ink/35 hover:bg-ink/5",
             )}
           >
             {course.isSelected ? "Selected" : "Select"}
@@ -89,17 +97,25 @@ export function CourseCard({
         <p className="mt-3 text-sm leading-6 text-ink/65">{course.notes}</p>
       ) : null}
 
+      {planningHint ? (
+        <p className="mt-3 rounded-2xl bg-ink/5 px-3 py-2 text-sm text-ink/60">
+          {planningHint}
+        </p>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
         {statusOptions.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onStatusChange(option.value)}
+            disabled={planningLocked}
             className={cn(
               "rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] transition",
               course.status === option.value
                 ? "bg-ink text-white"
                 : "border border-ink/10 bg-white text-ink/70 hover:border-ink/20",
+              planningLocked && "cursor-not-allowed border-ink/10 bg-ink/5 text-ink/35 hover:border-ink/10",
             )}
           >
             {option.label}

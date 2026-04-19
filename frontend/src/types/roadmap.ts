@@ -25,6 +25,7 @@ export interface RoadmapCourse {
   status: CourseStatus;
   prerequisitesMet: boolean;
   prerequisiteMessage: string | null;
+  prerequisiteCourseCodes: string[];
   notes: string | null;
   isSelected: boolean;
 }
