@@ -16,6 +16,7 @@ type Query {
 
 type Mutation {
 	updateCourseStatus(input: UpdateCourseStatusInput!): StudentProgress!
+	batchUpdateCourseStatuses(input: BatchUpdateCourseStatusesInput!): StudentProgress!
 	selectElective(input: SelectElectiveInput!): StudentProgress!
 	clearElectiveSelection(input: ClearElectiveSelectionInput!): StudentProgress!
 
@@ -159,6 +160,14 @@ input ClearElectiveSelectionInput {
 	universityCode: String!
 	programCode: String!
 	groupCode: String!
+	studentExternalKey: String
+}
+
+input BatchUpdateCourseStatusesInput {
+	universityCode: String!
+	programCode: String!
+	courseCodes: [String!]!
+	status: String!
 	studentExternalKey: String
 }
 `

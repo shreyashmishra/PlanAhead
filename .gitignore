@@ -1,6 +1,8 @@
 # Dependencies
 node_modules/
 backend/planner-api/vendor/
+.pnp
+.pnp.js
 
 # Environments
 .env
@@ -15,29 +17,48 @@ frontend/.next/
 frontend/out/
 frontend/build/
 frontend/tsconfig.tsbuildinfo
+frontend/.next/cache/
 
 # OS
 .DS_Store
 Thumbs.db
+*.bak
+*.swp
+*.swo
 
 # Air (Go hot-reload) build artefacts
 backend/planner-api/.air_tmp/
 backend/planner-api/main
+backend/planner-api/tmp/
+
+# Go compile
+backend/planner-api/bin/
+backend/planner-api/planner-api.exe
+backend/planner-api/planner-api
 
 # IDEs
 .idea/
 .vscode/
-*.swp
-*.swo
+*.sublime-project
+*.sublime-workspace
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# Workspace
+# Docker
+.docker/
+mysql_data/
+
+# Workspace & Agentic
 .gemini/
 .gemini_subagent/
 .cortex/
 .antigravity/
+.brain/
+.system_generated/
+artifacts/
+scratch/

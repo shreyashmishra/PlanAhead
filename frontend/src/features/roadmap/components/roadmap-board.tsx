@@ -216,8 +216,25 @@ export function RoadmapBoard({
       }
     }
 
+    const allGroups = groupByYear(sortedTerms);
+    const requirementsGroup = allGroups.find(g => g.year === 0) || null;
+    const pathwayGroups = allGroups.filter(g => g.year > 0);
+
+    // Filter requirementsGroup to only show NOT COMPLETED items
+    if (requirementsGroup) {
+      requirementsGroup.items = requirementsGroup.items.map(term => ({
+        ...term,
+        requirements: term.requirements.filter(req => {
+          if (req.course) return req.course.status !== "COMPLETED";
+          if (req.group) return req.group.status !== "COMPLETED";
+          return true;
+        })
+      }));
+    }
+
     return {
-      groups: groupByYear(sortedTerms),
+      requirementsGroup,
+      pathwayGroups,
       pathwayTerms: sortedTerms.filter((term) => term.year > 0),
       requirementByKey,
       sortedTerms,
@@ -568,19 +585,256 @@ export function RoadmapBoard({
             ? `${activePlanningTerm.label} is running as an overload at ${currentTermLoad}/${currentTermCapacity} courses.`
             : null
       : null;
+  const renderRequirement = (requirement: TermRequirement, term: TermRoadmap) => {
+    const key = requirementKey(requirement);
+    if (!key) return null;
+
+    if (requirement.course) {
+      const isMoved = Boolean(plannedTerms[requirement.course.code]);
+      const planningRule = evaluateCourseForTerm(requirement.course, term);
+      return (
+        <div
+          key={`${term.code}-${requirement.course.code}`}
+          draggable={!isGuest}
+          onDragStart={(event) => handleDragStart(event, requirement.course!.code)}
+          onDragEnd={handleDragEnd}
+          className="relative cursor-move"
+        >
+          <CourseCard
+            course={requirement.course}
+            variant="required"
+            planningLocked={!planningRule.allowed}
+            planningHint={planningRule.reason}
+            onStatusChange={(status) => {
+              if (status !== "NOT_STARTED" && !planningRule.allowed) {
+                setPlanningMessage(planningRule.reason);
+                return;
+              }
+              const targetTerm = resolvePlanningTargetTerm(term);
+              if (status !== "NOT_STARTED" && targetTerm) {
+                persistRequirementInActiveTerm(requirement.course!.code, targetTerm);
+              }
+              setPlanningMessage(null);
+              onCourseStatusChange(requirement.course!.code, status);
+            }}
+            onPrerequisiteComplete={(code) => onCourseStatusChange(code, "COMPLETED")}
+          />
+          {isMoved ? (
+            <button
+              type="button"
+              onClick={() => clearTermPlan(requirement.course!.code)}
+              className="absolute right-2 top-2 rounded-full bg-rose/10 p-1 text-xs text-rose shadow-sm transition hover:bg-rose/20"
+              title="Reset to default term"
+            >
+              Reset
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+
+    if (requirement.group) {
+      const isMoved = Boolean(plannedTerms[requirement.group.code]);
+      const groupRule = evaluateTermPlanning(term);
+
+      return (
+        <div
+          key={`${term.code}-${requirement.group.code}`}
+          draggable={!isGuest}
+          onDragStart={(event) => handleDragStart(event, requirement.group!.code)}
+          onDragEnd={handleDragEnd}
+          className="relative cursor-move"
+        >
+          <ElectiveGroupCard
+            group={requirement.group}
+            groupPlanningLocked={!groupRule.allowed}
+            getOptionPlanningState={(courseCode) => {
+              const option = requirement.group!.options.find(
+                (candidate) => candidate.code === courseCode,
+              );
+              if (!option) {
+                return {
+                  planningLocked: true,
+                  planningHint: "Unable to plan this elective right now.",
+                  selectionLocked: true,
+                };
+              }
+
+              const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
+              return {
+                planningLocked: !optionRule.allowed,
+                planningHint: optionRule.reason,
+                selectionLocked: !optionRule.allowed,
+              };
+            }}
+            onSelectOption={(courseCode) => {
+              const option = requirement.group!.options.find(
+                (candidate) => candidate.code === courseCode,
+              );
+              if (!option) return;
+
+              const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
+              if (!optionRule.allowed) {
+                setPlanningMessage(optionRule.reason);
+                return;
+              }
+
+              const targetTerm = resolvePlanningTargetTerm(term);
+              if (targetTerm) {
+                persistRequirementInActiveTerm(requirement.group!.code, targetTerm);
+              }
+              setPlanningMessage(null);
+              onElectiveSelect(requirement.group!.code, courseCode);
+            }}
+            onOptionStatusChange={(courseCode, status) => {
+              const option = requirement.group!.options.find(
+                (candidate) => candidate.code === courseCode,
+              );
+              if (!option) return;
+
+              const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
+              if (status !== "NOT_STARTED" && !optionRule.allowed) {
+                setPlanningMessage(optionRule.reason);
+                return;
+              }
+
+              const targetTerm = resolvePlanningTargetTerm(term);
+              if (status !== "NOT_STARTED" && targetTerm) {
+                persistRequirementInActiveTerm(requirement.group!.code, targetTerm);
+              }
+              setPlanningMessage(null);
+              onElectiveStatusChange(requirement.group!.code, courseCode, status);
+            }}
+            onClearSelection={() => {
+              if (!groupRule.allowed) {
+                setPlanningMessage(groupRule.reason);
+                return;
+              }
+              setPlanningMessage(null);
+              onElectiveClear(requirement.group!.code);
+            }}
+            onPrerequisiteComplete={(code) => onCourseStatusChange(code, "COMPLETED")}
+          />
+          {isMoved ? (
+            <button
+              type="button"
+              onClick={() => clearTermPlan(requirement.group!.code)}
+              className="absolute right-2 top-2 z-10 rounded-full bg-rose/10 p-1 text-xs text-rose shadow-sm transition hover:bg-rose/20"
+              title="Reset to default term"
+            >
+              Reset
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const renderTerm = (term: TermRoadmap) => {
+    const pct = termCompletion(term);
+    const isAcademic = term.year > 0;
+    const isPlanningTerm = activePlanningTermCode === term.code;
+    const load = termLoad(term);
+    const capacity = termCapacity(term);
+    const isAtStandardLimit = isAcademic && load >= 5;
+
+    return (
+      <article
+        key={term.code}
+        onDrop={(event) => handleDrop(event, term.code)}
+        onDragOver={handleDragOver}
+        onDragEnter={(event) => handleDragEnter(event, term)}
+        onDragLeave={handleDragLeave}
+        className={cn(
+          "flex flex-col rounded-[1.7rem] border border-ink/8 bg-cloud p-5 transition-colors",
+          isPlanningTerm && "border-teal/40 ring-2 ring-teal/15",
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">
+              {shortLabel(term)}
+            </div>
+            <div>
+              <h3 className="font-display text-xl leading-tight text-ink">
+                {term.season} · Year {term.year}
+              </h3>
+              {isPlanningTerm && (
+                <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-teal">
+                  Planning Now
+                </p>
+              )}
+              <p className="mt-1 text-xs text-ink/45">
+                {termOverrides[term.code]
+                  ? `${load}/${capacity} courses · overload`
+                  : `${load}/5 courses`}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white px-3 py-2 text-right shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40">Done</p>
+            <p className="mt-0.5 font-display text-xl text-ink">
+              {term.completedCount}/{term.totalCount}
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-ink/8">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-teal to-amber transition-all duration-500"
+            style={{ width: `${pct * 100}%` }}
+          />
+        </div>
+
+        <div className="min-h-[50px] space-y-3 rounded-xl">
+          {isAtStandardLimit && (
+            <div className={cn(
+              "rounded-2xl border px-4 py-3 text-sm shadow-sm",
+              load >= 7 ? "border-rose/20 bg-rose/8 text-rose" : "border-amber/20 bg-sand/35 text-ink/75"
+            )}>
+              <div className="flex items-center justify-between gap-3">
+                <p>
+                  {load >= 7 ? "Term is full (7 max)." : "Overload capacity active (7 max)."}
+                </p>
+                {!termOverrides[term.code] && load >= 5 && (
+                   <button
+                    type="button"
+                    onClick={() => approveTermOverride(term)}
+                    className="rounded-full bg-ink px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white"
+                  >
+                    Overload
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {term.requirements.length === 0 && isPlanningTerm && (
+            <div className="rounded-2xl border border-dashed border-teal/25 bg-white/60 px-4 py-5 text-sm text-ink/55 text-center">
+              Drag courses here
+            </div>
+          )}
+
+          {term.requirements.map((req) => renderRequirement(req, term))}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <section className="space-y-5">
-      {planningBannerMessage ? (
+      {planningBannerMessage && (
         <div className="rounded-[1.6rem] border border-ink/8 bg-white/75 px-4 py-3 text-sm text-ink/70 shadow-sm">
           {planningBannerMessage}
         </div>
-      ) : null}
+      )}
 
-      {loadAlert && activePlanningTerm ? (
+      {loadAlert && activePlanningTerm && (
         <div className="flex items-center justify-between gap-3 rounded-[1.6rem] border border-amber/25 bg-sand/35 px-4 py-3 text-sm text-ink/75 shadow-sm">
           <p>{loadAlert}</p>
-          {!termOverrides[activePlanningTerm.code] && currentTermLoad >= 5 && currentTermLoad < 7 ? (
+          {!termOverrides[activePlanningTerm.code] && currentTermLoad >= 5 && currentTermLoad < 7 && (
             <button
               type="button"
               onClick={() => approveTermOverride(activePlanningTerm)}
@@ -588,9 +842,9 @@ export function RoadmapBoard({
             >
               Approve Overload
             </button>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
       {hasPathway && (
         <div className="rounded-[2rem] border border-white/70 bg-white/80 p-5 shadow-panel backdrop-blur">
@@ -651,312 +905,47 @@ export function RoadmapBoard({
         </div>
       )}
 
-      {planningData.groups.map(({ year, label: groupLabel, items }) => {
-        if (year === 0 && items.every((term) => term.requirements.length === 0)) {
-          return null;
-        }
-
-        return (
-          <div key={year} className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div
-                className={cn(
-                  "rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em]",
-                  year === 0 ? "bg-ink/8 text-ink/60" : "bg-ink text-white",
-                )}
-              >
-                {groupLabel}
-              </div>
-              <div className="h-px flex-1 bg-ink/10" />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px,1fr]">
+        <aside className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-full bg-ink/8 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-ink/60">
+              Remaining Courses
             </div>
-
-            <div
-              className={cn(
-                "grid gap-4",
-                year > 0 ? "xl:grid-cols-2" : "xl:grid-cols-1",
-              )}
-            >
-              {items.map((term) => {
-                const pct = termCompletion(term);
-                const isAcademic = term.year > 0;
-                const isPlanningTerm = activePlanningTermCode === term.code;
-                const load = termLoad(term);
-                const capacity = termCapacity(term);
-                const isAtStandardLimit = isAcademic && load >= 5;
-
-                return (
-                  <article
-                    key={term.code}
-                    onDrop={(event) => handleDrop(event, term.code)}
-                    onDragOver={handleDragOver}
-                    onDragEnter={(event) => handleDragEnter(event, term)}
-                    onDragLeave={handleDragLeave}
-                    className={cn(
-                      "flex flex-col rounded-[1.7rem] border border-ink/8 bg-cloud p-5 transition-colors",
-                      isPlanningTerm && "border-teal/40 ring-2 ring-teal/15",
-                    )}
-                  >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        {isAcademic ? (
-                          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-ink text-sm font-bold text-white">
-                            {shortLabel(term)}
-                          </div>
-                        ) : (
-                          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-ink/8">
-                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                              <path
-                                d="M3 5h12M3 9h8M3 13h10"
-                                stroke="#102336"
-                                strokeOpacity="0.4"
-                                strokeWidth="1.5"
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="font-display text-xl leading-tight text-ink">
-                            {isAcademic
-                              ? term.season === "FALL"
-                                ? `Fall · Year ${term.year}`
-                                : term.season === "WINTER"
-                                  ? `Winter · Year ${term.year}`
-                                  : `Spring · Year ${term.year}`
-                              : term.label}
-                          </h3>
-                          {isPlanningTerm ? (
-                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-teal">
-                              Planning Now
-                            </p>
-                          ) : null}
-                          {isAcademic ? (
-                            <p className="mt-1 text-xs text-ink/45">
-                              {termOverrides[term.code]
-                                ? `${load}/${capacity} courses · overload active`
-                                : `${load}/5 courses`}
-                            </p>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {term.totalCount > 0 && (
-                        <div className="rounded-2xl bg-white px-3 py-2 text-right shadow-sm">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink/40">
-                            Done
-                          </p>
-                          <p className="mt-0.5 font-display text-xl text-ink">
-                            {term.completedCount}/{term.totalCount}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {term.totalCount > 0 && (
-                      <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-ink/8">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-teal to-amber transition-all duration-500"
-                          style={{ width: `${pct * 100}%` }}
-                        />
-                      </div>
-                    )}
-
-                    <div className="min-h-[50px] space-y-3 rounded-xl">
-                      {isAtStandardLimit ? (
-                        <div
-                          className={cn(
-                            "rounded-2xl border px-4 py-3 text-sm shadow-sm",
-                            load >= 7
-                              ? "border-rose/20 bg-rose/8 text-rose"
-                              : "border-amber/20 bg-sand/35 text-ink/75",
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <p>
-                              {load >= 7
-                                ? `${term.label} is full at 7 courses.`
-                                : termOverrides[term.code]
-                                  ? `${term.label} is running an overload at ${load}/${capacity} courses.`
-                                  : `${term.label} has reached the 5-course limit.`}
-                            </p>
-                            {!termOverrides[term.code] && load >= 5 && load < 7 ? (
-                              <button
-                                type="button"
-                                onClick={() => approveTermOverride(term)}
-                                className="rounded-full bg-ink px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-ink/90"
-                              >
-                                Approve Overload
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {term.requirements.length === 0 && isPlanningTerm ? (
-                        <div className="rounded-2xl border border-dashed border-teal/25 bg-white/60 px-4 py-5 text-sm text-ink/55">
-                          Drag eligible courses into {term.label} to plan this term.
-                        </div>
-                      ) : null}
-
-                      {term.requirements.map((requirement) => {
-                        const key = requirementKey(requirement);
-                        if (!key) {
-                          return null;
-                        }
-
-                        if (requirement.course) {
-                          const isMoved = Boolean(plannedTerms[requirement.course.code]);
-                          const planningRule = evaluateCourseForTerm(requirement.course, term);
-                          return (
-                            <div
-                              key={`${term.code}-${requirement.course.code}`}
-                              draggable
-                              onDragStart={(event) => handleDragStart(event, requirement.course!.code)}
-                              onDragEnd={handleDragEnd}
-                              className="relative cursor-move"
-                            >
-                              <CourseCard
-                                course={requirement.course}
-                                variant="required"
-                                planningLocked={!planningRule.allowed}
-                                planningHint={planningRule.reason}
-                                onStatusChange={(status) => {
-                                  if (status !== "NOT_STARTED" && !planningRule.allowed) {
-                                    setPlanningMessage(planningRule.reason);
-                                    return;
-                                  }
-                                  const targetTerm = resolvePlanningTargetTerm(term);
-                                  if (status !== "NOT_STARTED" && targetTerm) {
-                                    persistRequirementInActiveTerm(requirement.course!.code, targetTerm);
-                                  }
-                                  setPlanningMessage(null);
-                                  onCourseStatusChange(requirement.course!.code, status);
-                                }}
-                              />
-                              {isMoved ? (
-                                <button
-                                  type="button"
-                                  onClick={() => clearTermPlan(requirement.course!.code)}
-                                  className="absolute right-2 top-2 rounded-full bg-rose/10 p-1 text-xs text-rose shadow-sm transition hover:bg-rose/20"
-                                  title="Reset to default term"
-                                >
-                                  Reset
-                                </button>
-                              ) : null}
-                            </div>
-                          );
-                        }
-
-                        if (requirement.group) {
-                          const isMoved = Boolean(plannedTerms[requirement.group.code]);
-                          const groupRule = evaluateTermPlanning(term);
-
-                          return (
-                            <div
-                              key={`${term.code}-${requirement.group.code}`}
-                              draggable
-                              onDragStart={(event) => handleDragStart(event, requirement.group!.code)}
-                              onDragEnd={handleDragEnd}
-                              className="relative cursor-move"
-                            >
-                              <ElectiveGroupCard
-                                group={requirement.group}
-                                groupPlanningLocked={!groupRule.allowed}
-                                getOptionPlanningState={(courseCode) => {
-                                  const option = requirement.group!.options.find(
-                                    (candidate) => candidate.code === courseCode,
-                                  );
-                                  if (!option) {
-                                    return {
-                                      planningLocked: true,
-                                      planningHint: "Unable to plan this elective right now.",
-                                      selectionLocked: true,
-                                    };
-                                  }
-
-                                  const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
-                                  return {
-                                    planningLocked: !optionRule.allowed,
-                                    planningHint: optionRule.reason,
-                                    selectionLocked: !optionRule.allowed,
-                                  };
-                                }}
-                                onSelectOption={(courseCode) => {
-                                  const option = requirement.group!.options.find(
-                                    (candidate) => candidate.code === courseCode,
-                                  );
-                                  if (!option) {
-                                    return;
-                                  }
-
-                                  const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
-                                  if (!optionRule.allowed) {
-                                    setPlanningMessage(optionRule.reason);
-                                    return;
-                                  }
-
-                                  const targetTerm = resolvePlanningTargetTerm(term);
-                                  if (targetTerm) {
-                                    persistRequirementInActiveTerm(requirement.group!.code, targetTerm);
-                                  }
-                                  setPlanningMessage(null);
-                                  onElectiveSelect(requirement.group!.code, courseCode);
-                                }}
-                                onOptionStatusChange={(courseCode, status) => {
-                                  const option = requirement.group!.options.find(
-                                    (candidate) => candidate.code === courseCode,
-                                  );
-                                  if (!option) {
-                                    return;
-                                  }
-
-                                  const optionRule = evaluateCourseForTerm(option, term, requirement.group!.code);
-                                  if (status !== "NOT_STARTED" && !optionRule.allowed) {
-                                    setPlanningMessage(optionRule.reason);
-                                    return;
-                                  }
-
-                                  const targetTerm = resolvePlanningTargetTerm(term);
-                                  if (status !== "NOT_STARTED" && targetTerm) {
-                                    persistRequirementInActiveTerm(requirement.group!.code, targetTerm);
-                                  }
-                                  setPlanningMessage(null);
-                                  onElectiveStatusChange(requirement.group!.code, courseCode, status);
-                                }}
-                                onClearSelection={() => {
-                                  if (!groupRule.allowed) {
-                                    setPlanningMessage(groupRule.reason);
-                                    return;
-                                  }
-
-                                  setPlanningMessage(null);
-                                  onElectiveClear(requirement.group!.code);
-                                }}
-                              />
-                              {isMoved ? (
-                                <button
-                                  type="button"
-                                  onClick={() => clearTermPlan(requirement.group!.code)}
-                                  className="absolute right-2 top-2 z-10 rounded-full bg-rose/10 p-1 text-xs text-rose shadow-sm transition hover:bg-rose/20"
-                                  title="Reset to default term"
-                                >
-                                  Reset
-                                </button>
-                              ) : null}
-                            </div>
-                          );
-                        }
-
-                        return null;
-                      })}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+            <div className="h-px flex-1 bg-ink/10" />
           </div>
-        );
-      })}
+          
+          <div className="max-h-[80vh] overflow-y-auto space-y-4 pr-2">
+            {planningData.requirementsGroup?.items.map((term) => (
+              <div key={term.code} className="space-y-4">
+                {term.requirements.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-ink/10 p-6 text-center text-sm text-ink/40">
+                    All core requirements completed!
+                  </div>
+                ) : (
+                  term.requirements.map((requirement) => renderRequirement(requirement, term))
+                )}
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="space-y-6">
+          {planningData.pathwayGroups.map(({ year, label: groupLabel, items }) => (
+            <div key={year} className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-ink px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-white">
+                  {groupLabel}
+                </div>
+                <div className="h-px flex-1 bg-ink/10" />
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                {items.map((term) => renderTerm(term))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

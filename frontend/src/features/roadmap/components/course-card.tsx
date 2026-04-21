@@ -6,6 +6,7 @@ interface CourseCardProps {
   variant: "required" | "elective";
   onStatusChange: (status: CourseStatus) => void;
   onSelect?: () => void;
+  onPrerequisiteComplete?: (code: string) => void;
   planningLocked?: boolean;
   planningHint?: string | null;
   selectionLocked?: boolean;
@@ -28,6 +29,7 @@ export function CourseCard({
   course,
   variant,
   onStatusChange,
+  onPrerequisiteComplete,
   onSelect,
   planningLocked = false,
   planningHint = null,
@@ -81,16 +83,32 @@ export function CourseCard({
       </div>
 
       {course.prerequisiteMessage ? (
-        <p
+        <div
           className={cn(
-            "mt-4 rounded-2xl px-3 py-2 text-sm",
+            "mt-4 rounded-2xl p-4",
             course.prerequisitesMet
-              ? "bg-mint/55 text-teal"
-              : "bg-rose/10 text-rose",
+              ? "bg-mint/45 text-teal"
+              : "bg-rose/8 text-rose",
           )}
         >
-          {course.prerequisiteMessage}
-        </p>
+          <p className="text-sm font-medium leading-relaxed">{course.prerequisiteMessage}</p>
+          
+          {!course.prerequisitesMet && course.prerequisiteCourseCodes.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {course.prerequisiteCourseCodes.map((code) => (
+                <button
+                  key={code}
+                  onClick={() => onPrerequisiteComplete?.(code)}
+                  className="group flex items-center gap-1.5 rounded-lg border border-rose/20 bg-white/60 px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-rose shadow-sm transition hover:bg-white active:scale-95"
+                  title={`Mark ${code} as completed`}
+                >
+                  <span>{code}</span>
+                  <span className="opacity-40 transition group-hover:opacity-100">+ Done</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       ) : null}
 
       {course.notes ? (

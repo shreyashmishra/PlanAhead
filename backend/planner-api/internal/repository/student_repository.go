@@ -77,37 +77,50 @@ func (r *StudentRepository) GetProgressSnapshot(ctx context.Context, universityC
 }
 
 func (r *StudentRepository) UpdateCourseStatus(ctx context.Context, universityCode string, programCode string, courseCode string, status model.CourseStatus, studentExternalKey string) (model.ProgressSnapshot, error) {
+	return r.BatchUpdateCourseStatuses(ctx, universityCode, programCode, []string{courseCode}, status, studentExternalKey)
+}
+
+func (r *StudentRepository) BatchUpdateCourseStatuses(ctx context.Context, universityCode string, programCode string, courseCodes []string, status model.CourseStatus, studentExternalKey string) (model.ProgressSnapshot, error) {
+	if len(courseCodes) == 0 {
+		return r.GetProgressSnapshot(ctx, universityCode, programCode, studentExternalKey)
+	}
+
 	if status == model.CourseStatusNotStarted {
-		if _, err := r.db.ExecContext(
-			ctx,
-			`DELETE FROM planner_student_course_progress
-			WHERE student_external_key = ? AND university_code = ? AND program_code = ? AND course_code = ?`,
-			studentExternalKey,
-			universityCode,
-			programCode,
-			courseCode,
-		); err != nil {
+		args := make([]interface{}, 0, len(courseCodes)+3)
+		args = append(args, studentExternalKey, universityCode, programCode)
+		placeholders := make([]string, len(courseCodes))
+		for i, code := range courseCodes {
+			placeholders[i] = "?"
+			args = append(args, code)
+		}
+
+		query := `DELETE FROM planner_student_course_progress
+			WHERE student_external_key = ? AND university_code = ? AND program_code = ? 
+			AND course_code IN (` + strings.Join(placeholders, ",") + `)`
+
+		if _, err := r.db.ExecContext(ctx, query, args...); err != nil {
 			return model.ProgressSnapshot{}, err
 		}
 		return r.GetProgressSnapshot(ctx, universityCode, programCode, studentExternalKey)
 	}
 
 	now := time.Now().UTC()
-	if _, err := r.db.ExecContext(
-		ctx,
-		`INSERT INTO planner_student_course_progress
+	query := `INSERT INTO planner_student_course_progress
 			(student_external_key, university_code, program_code, course_code, status, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON DUPLICATE KEY UPDATE
+		VALUES `
+
+	placeholders := make([]string, len(courseCodes))
+	args := make([]interface{}, 0, len(courseCodes)*6)
+	for i, code := range courseCodes {
+		placeholders[i] = "(?, ?, ?, ?, ?, ?)"
+		args = append(args, studentExternalKey, universityCode, programCode, code, status, now)
+	}
+	query += strings.Join(placeholders, ",")
+	query += ` ON DUPLICATE KEY UPDATE
 			status = VALUES(status),
-			updated_at = VALUES(updated_at)`,
-		studentExternalKey,
-		universityCode,
-		programCode,
-		courseCode,
-		status,
-		now,
-	); err != nil {
+			updated_at = VALUES(updated_at)`
+
+	if _, err := r.db.ExecContext(ctx, query, args...); err != nil {
 		return model.ProgressSnapshot{}, err
 	}
 

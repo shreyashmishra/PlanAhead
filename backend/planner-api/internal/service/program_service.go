@@ -91,6 +91,15 @@ func (s *StudentService) UpdateCourseStatus(ctx context.Context, universityCode 
 	return toStudentProgress(snapshot, key), nil
 }
 
+func (s *StudentService) BatchUpdateCourseStatuses(ctx context.Context, universityCode string, programCode string, courseCodes []string, status model.CourseStatus, studentExternalKey *string) (*model.StudentProgress, error) {
+	key := s.resolveStudentKey(studentExternalKey)
+	snapshot, err := s.repo.BatchUpdateCourseStatuses(ctx, universityCode, programCode, courseCodes, status, key)
+	if err != nil {
+		return nil, err
+	}
+	return toStudentProgress(snapshot, key), nil
+}
+
 func (s *StudentService) SelectElective(ctx context.Context, universityCode string, programCode string, groupCode string, courseCode string, studentExternalKey *string) (*model.StudentProgress, error) {
 	key := s.resolveStudentKey(studentExternalKey)
 	snapshot, err := s.repo.SelectElective(ctx, universityCode, programCode, groupCode, courseCode, key)

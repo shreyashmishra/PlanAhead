@@ -12,6 +12,7 @@ interface ElectiveGroupCardProps {
     selectionLocked: boolean;
   };
   groupPlanningLocked?: boolean;
+  onPrerequisiteComplete?: (code: string) => void;
 }
 
 export function ElectiveGroupCard({
@@ -21,6 +22,7 @@ export function ElectiveGroupCard({
   onClearSelection,
   getOptionPlanningState,
   groupPlanningLocked = false,
+  onPrerequisiteComplete,
 }: ElectiveGroupCardProps) {
   return (
     <section className="rounded-[1.9rem] border border-dashed border-teal/20 bg-white/75 p-5">
@@ -55,6 +57,7 @@ export function ElectiveGroupCard({
               variant="elective"
               onSelect={() => onSelectOption(option.code)}
               onStatusChange={(status) => onOptionStatusChange(option.code, status)}
+              onPrerequisiteComplete={onPrerequisiteComplete}
               planningLocked={planningState.planningLocked}
               planningHint={planningState.planningHint}
               selectionLocked={planningState.selectionLocked}

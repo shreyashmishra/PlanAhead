@@ -239,6 +239,42 @@ export async function updateCourseStatus(
   return data.updateCourseStatus;
 }
 
+export async function batchUpdateCourseStatuses(
+  universityCode: string,
+  programCode: string,
+  courseCodes: string[],
+  status: string,
+): Promise<StudentProgress> {
+  const data = await graphqlRequest<{ batchUpdateCourseStatuses: StudentProgress }>(
+    `
+      mutation BatchUpdateCourseStatuses($input: BatchUpdateCourseStatusesInput!) {
+        batchUpdateCourseStatuses(input: $input) {
+          studentExternalKey
+          courseStatuses {
+            courseCode
+            status
+          }
+          electiveSelections {
+            groupCode
+            courseCode
+          }
+        }
+      }
+    `,
+    {
+      input: {
+        universityCode,
+        programCode,
+        courseCodes,
+        status,
+        studentExternalKey: typeof window !== "undefined" ? localStorage.getItem("externalKey") : null,
+      },
+    },
+  );
+
+  return data.batchUpdateCourseStatuses;
+}
+
 export async function selectElective(
   universityCode: string,
   programCode: string,

@@ -99,6 +99,22 @@ func (r *RootResolver) UpdateCourseStatus(ctx context.Context, args struct {
 	return &studentProgressResolver{item: *progress}, nil
 }
 
+func (r *RootResolver) BatchUpdateCourseStatuses(ctx context.Context, args struct {
+	Input struct {
+		UniversityCode     string
+		ProgramCode        string
+		CourseCodes        []string
+		Status             string
+		StudentExternalKey *string
+	}
+}) (*studentProgressResolver, error) {
+	progress, err := r.studentService.BatchUpdateCourseStatuses(ctx, args.Input.UniversityCode, args.Input.ProgramCode, args.Input.CourseCodes, model.CourseStatus(args.Input.Status), args.Input.StudentExternalKey)
+	if err != nil {
+		return nil, err
+	}
+	return &studentProgressResolver{item: *progress}, nil
+}
+
 func (r *RootResolver) SelectElective(ctx context.Context, args struct {
 	Input struct {
 		UniversityCode     string

@@ -6,7 +6,9 @@ import { ProgressSummary } from "@/features/progress/components/progress-summary
 import { ProgramSelector } from "@/features/programs/components/program-selector";
 import { RoadmapBoard } from "@/features/roadmap/components/roadmap-board";
 import { RoadmapGraph } from "@/features/roadmap/components/roadmap-graph";
+import { OnboardingFlow } from "@/features/roadmap/components/onboarding-flow";
 import { AuthModal } from "./auth-modal";
+import { cn } from "@/lib/utils/cn";
 import {
   ProgramSelectionStorageService,
   WATERLOO_UNIVERSITY_CODE,
@@ -18,6 +20,7 @@ import {
   fetchStudentProgress,
   selectElective,
   updateCourseStatus,
+  batchUpdateCourseStatuses,
 } from "@/lib/graphql/client";
 import type {
   CourseStatus,
@@ -66,22 +69,29 @@ export function StudentPortal() {
 
   const [activeTab, setActiveTab] = useState<"explore" | "my-plans">("explore");
   const [savedPlans, setSavedPlans] = useState<string[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardedPrograms, setOnboardedPrograms] = useState<Set<string>>(new Set());
 
-  // Load saved plans for the user
+  // Load saved plans and onboarding status
   useEffect(() => {
-    if (currentUserKey) {
-      try {
-        const stored = localStorage.getItem(`savedPlans_${currentUserKey}`);
-        if (stored) {
-          setSavedPlans(JSON.parse(stored));
-        } else {
-          setSavedPlans([]);
-        }
-      } catch {
+    const key = currentUserKey || "guest";
+    try {
+      const storedPlans = localStorage.getItem(`savedPlans_${key}`);
+      if (storedPlans) {
+        setSavedPlans(JSON.parse(storedPlans));
+      } else {
         setSavedPlans([]);
       }
-    } else {
+
+      const storedOnboarded = localStorage.getItem(`onboardedPrograms_${key}`);
+      if (storedOnboarded) {
+        setOnboardedPrograms(new Set(JSON.parse(storedOnboarded)));
+      } else {
+        setOnboardedPrograms(new Set());
+      }
+    } catch {
       setSavedPlans([]);
+      setOnboardedPrograms(new Set());
     }
   }, [currentUserKey]);
 
@@ -218,6 +228,47 @@ export function StudentPortal() {
     void loadRoadmap();
     return () => { cancelled = true; };
   }, [progress, selection.programCode, selection.universityCode]);
+
+  useEffect(() => {
+    // If we have a roadmap but haven't onboarded this program yet, show the flow
+    const hasRequirements = roadmap && roadmap.terms.some(t => t.year > 0 && t.requirements.length > 0);
+    const alreadyOnboarded = onboardedPrograms.has(selection.programCode || "");
+
+    if (hasRequirements && !alreadyOnboarded) {
+      setShowOnboarding(true);
+    }
+  }, [roadmap, selection.programCode, onboardedPrograms]);
+
+  const handleOnboardingComplete = async (completedCodes: string[]) => {
+    if (!selection.programCode || !selection.universityCode) return;
+
+    try {
+      setIsProgressMutating(true);
+      // Batch update all courses to COMPLETED
+      if (completedCodes.length > 0) {
+        const freshProgress = await batchUpdateCourseStatuses(
+          selection.universityCode,
+          selection.programCode,
+          completedCodes,
+          "COMPLETED"
+        );
+        setProgress(toSnapshot(freshProgress));
+      }
+
+      const nextOnboarded = new Set(onboardedPrograms);
+      nextOnboarded.add(selection.programCode);
+      setOnboardedPrograms(nextOnboarded);
+      
+      const key = currentUserKey || "guest";
+      localStorage.setItem(`onboardedPrograms_${key}`, JSON.stringify(Array.from(nextOnboarded)));
+      
+      setShowOnboarding(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save your academic history.");
+    } finally {
+      setIsProgressMutating(false);
+    }
+  };
 
   const handleProgramChange = (programCode: string) => {
     const nextSelection = { universityCode: WATERLOO_UNIVERSITY_CODE, programCode };
@@ -374,9 +425,24 @@ export function StudentPortal() {
       </main>
     );
   }
-
   return (
     <main className="min-h-screen bg-hero-gradient px-4 py-6 text-ink sm:px-6 lg:px-8">
+      {showOnboarding && roadmap && (
+        <OnboardingFlow
+          roadmap={roadmap}
+          onComplete={handleOnboardingComplete}
+          onSkip={() => {
+            setShowOnboarding(false);
+            if (selection.programCode) {
+              const nextOnboarded = new Set(onboardedPrograms);
+              nextOnboarded.add(selection.programCode);
+              setOnboardedPrograms(nextOnboarded);
+              const key = currentUserKey || "guest";
+              localStorage.setItem(`onboardedPrograms_${key}`, JSON.stringify(Array.from(nextOnboarded)));
+            }
+          }}
+        />
+      )}
       <div className="mx-auto max-w-[1500px]">
 
         {/* Top header bar */}
@@ -452,8 +518,10 @@ export function StudentPortal() {
             }}
           />
         )}
-
-        <section className="rounded-[2.4rem] border border-white/60 bg-white/55 p-5 shadow-panel backdrop-blur sm:p-6">
+        <section className={cn(
+          "rounded-[2.4rem] border border-white/60 bg-white/55 p-5 shadow-panel backdrop-blur sm:p-6 transition-all duration-500",
+          showOnboarding && "blur-xl opacity-40 pointer-events-none scale-[0.98]"
+        )}>
           <div className="grid gap-5 xl:grid-cols-[320px,minmax(0,1fr)]">
 
             {/* Sidebar */}
