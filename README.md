@@ -98,13 +98,17 @@ cp .env.example .env
 
 ## Deploy frontend to Vercel
 
-Deploy the `frontend` directory as the project root.
+This repo now includes a root-level `vercel.json` so you can deploy from the repository root.
+
+If you configure the project manually in the Vercel dashboard instead, set the Root Directory to `frontend`.
 
 Set this environment variable in Vercel:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_GRAPHQL_API_URL` | Yes | Public URL for the Go GraphQL API |
+
+Do not leave the Output Directory override set to `public` for this project. For a manual dashboard setup, leave Output Directory empty so Vercel can use the Next.js defaults.
 
 If you skip that variable, the frontend will still build and load, but API-backed features will show a configuration error instead of trying to call `localhost`.
 
