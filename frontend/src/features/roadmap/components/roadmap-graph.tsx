@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import type { ReactNode } from "react";
+import { useEffect } from "react";
 import {
   ReactFlow,
   Controls,
@@ -8,11 +9,12 @@ import {
   Node,
   Edge,
   MarkerType,
+  Position,
   useNodesState,
   useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { Roadmap, RoadmapCourse } from "@/types/roadmap";
+import type { Roadmap } from "@/types/roadmap";
 import dagre from "dagre";
 
 interface RoadmapGraphProps {
@@ -25,7 +27,23 @@ const nodeHeight = 100;
 // Helper to normalize course codes (remove spaces for matching)
 const normCode = (c: string) => c.replace(/\s+/g, "").toUpperCase();
 
-const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "LR") => {
+type LayoutDirection = "LR" | "TB";
+
+type RoadmapGraphNodeData = {
+  label: ReactNode;
+  rank: number;
+};
+
+type RoadmapGraphNode = Node<RoadmapGraphNodeData>;
+
+const extractCourseCodes = (text: string): string[] =>
+  Array.from(text.matchAll(/[A-Z]{2,4}\s?\d{3}[A-Z]?/g), (match) => match[0]);
+
+const getLayoutedElements = (
+  nodes: RoadmapGraphNode[],
+  edges: Edge[],
+  direction: LayoutDirection = "LR",
+) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   
@@ -54,8 +72,8 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "LR") => 
 
   nodes.forEach((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    node.targetPosition = direction === "LR" ? ("left" as any) : ("top" as any);
-    node.sourcePosition = direction === "LR" ? ("right" as any) : ("bottom" as any);
+    node.targetPosition = direction === "LR" ? Position.Left : Position.Top;
+    node.sourcePosition = direction === "LR" ? Position.Right : Position.Bottom;
 
     // Subtle randomization for a more organic 'web' feel
     const saltX = (Math.random() - 0.5) * 20;
@@ -77,40 +95,32 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
   useEffect(() => {
     if (!roadmap) return;
 
-    const initialNodes: Node[] = [];
+    const initialNodes: RoadmapGraphNode[] = [];
     const initialEdges: Edge[] = [];
     
     // Maps normalized code -> display code (for edge creation)
     const normalizedToDisplay = new Map<string, string>();
-    const courseToTermRank = new Map<string, number>();
 
     // Pass 1: Collect nodes and term-based ranks
     roadmap.terms.forEach((term) => {
-      const rank = term.sequence; // Higher sequence = further right
-      term.requirements.forEach(req => {
+      term.requirements.forEach((req) => {
         if (req.course) {
           normalizedToDisplay.set(normCode(req.course.code), req.course.code);
-          courseToTermRank.set(req.course.code, rank);
         }
         if (req.group) {
           normalizedToDisplay.set(normCode(req.group.code), req.group.code);
-          courseToTermRank.set(req.group.code, rank);
         }
       });
     });
 
     const discoveredPrereqs = new Set<string>();
-    // Matches ACTSC 231 or ACTSC231
-    const courseRegex = /[A-Z]{2,4}\s?\d{3}[A-Z]?/g;
 
     // Pass 2: Discover prerequisites
-    roadmap.terms.forEach(term => {
-      term.requirements.forEach(req => {
+    roadmap.terms.forEach((term) => {
+      term.requirements.forEach((req) => {
         if (req.course) {
           const text = (req.course.prerequisiteMessage || "") + " " + (req.course.description || "");
-          let match;
-          while ((match = courseRegex.exec(text)) !== null) {
-            const code = match[0];
+          for (const code of extractCourseCodes(text)) {
             const nc = normCode(code);
             if (!normalizedToDisplay.has(nc)) {
               discoveredPrereqs.add(code);
@@ -121,7 +131,14 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
     });
 
     // Node factory
-    const createNode = (id: string, label: string, subtitle?: string, status: string = "NOT_STARTED", isPrereq: boolean = false, rank: number = 0) => {
+    const createNode = (
+      id: string,
+      label: string,
+      subtitle?: string,
+      status: string = "NOT_STARTED",
+      isPrereq: boolean = false,
+      rank: number = 0,
+    ): RoadmapGraphNode => {
       const statusColors: Record<string, string> = {
         COMPLETED: "#daf1ea",
         IN_PROGRESS: "#fde8cd",
@@ -168,14 +185,32 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
     roadmap.terms.forEach((term) => {
       term.requirements.forEach((req) => {
         if (req.course) {
-          initialNodes.push(createNode(req.course.code, req.course.title, `Planned: ${term.label}`, req.course.status, false, term.sequence));
+          initialNodes.push(
+            createNode(
+              req.course.code,
+              req.course.title,
+              `Planned: ${term.label}`,
+              req.course.status,
+              false,
+              term.sequence,
+            ),
+          );
         } else if (req.group) {
-          initialNodes.push(createNode(req.group.code, req.group.title, "Elective Group", "NOT_STARTED", false, term.sequence));
+          initialNodes.push(
+            createNode(
+              req.group.code,
+              req.group.title,
+              "Elective Group",
+              "NOT_STARTED",
+              false,
+              term.sequence,
+            ),
+          );
         }
       });
     });
 
-    discoveredPrereqs.forEach(code => {
+    discoveredPrereqs.forEach((code) => {
       initialNodes.push(createNode(code, "External Prerequisite", "External Credit", "NOT_STARTED", true, 0));
       normalizedToDisplay.set(normCode(code), code);
     });
@@ -186,9 +221,7 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
       term.requirements.forEach((req) => {
         if (req.course) {
           const text = (req.course.prerequisiteMessage || "") + " " + (req.course.description || "");
-          let match;
-          while ((match = courseRegex.exec(text)) !== null) {
-            const mentionedCode = match[0];
+          for (const mentionedCode of extractCourseCodes(text)) {
             const nc = normCode(mentionedCode);
             const targetCode = normalizedToDisplay.get(nc);
             
@@ -217,7 +250,7 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       initialNodes,
       initialEdges,
-      "LR"
+      "LR",
     );
 
     setNodes(layoutedNodes);
@@ -233,7 +266,10 @@ export function RoadmapGraph({ roadmap }: RoadmapGraphProps) {
   }
 
   return (
-    <div style={{ width: "100%", height: "800px" }} className="rounded-[2.4rem] border border-white/60 bg-white/55 shadow-panel backdrop-blur overflow-hidden">
+    <div
+      style={{ width: "100%", height: "800px" }}
+      className="overflow-hidden rounded-[2.4rem] border border-white/60 bg-white/55 shadow-panel backdrop-blur"
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}

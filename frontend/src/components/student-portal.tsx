@@ -128,18 +128,20 @@ export function StudentPortal() {
         if (cancelled) return;
 
         setPrograms(universityPrograms);
-        const fallbackProgramCode =
-          selection.programCode &&
-          universityPrograms.some((item) => item.code === selection.programCode)
-            ? selection.programCode
-            : universityPrograms[0]?.code ?? null;
+        setSelection((currentSelection) => {
+          const fallbackProgramCode =
+            currentSelection.programCode &&
+            universityPrograms.some((item) => item.code === currentSelection.programCode)
+              ? currentSelection.programCode
+              : universityPrograms[0]?.code ?? null;
 
-        const nextSelection = {
-          universityCode: selection.universityCode,
-          programCode: fallbackProgramCode,
-        };
-        ProgramSelectionStorageService.set(nextSelection);
-        setSelection(nextSelection);
+          const nextSelection = {
+            universityCode: selection.universityCode,
+            programCode: fallbackProgramCode,
+          };
+          ProgramSelectionStorageService.set(nextSelection);
+          return nextSelection;
+        });
       } catch (loadError) {
         if (!cancelled) {
           setError(
@@ -487,7 +489,7 @@ export function StudentPortal() {
                     My Saved Plans
                   </h1>
                   {savedPlans.length === 0 ? (
-                    <p className="text-sm text-ink/60">You haven't saved any plans yet.</p>
+                    <p className="text-sm text-ink/60">You have not saved any plans yet.</p>
                   ) : (
                     <div className="space-y-3">
                       {savedPlans.map(code => {

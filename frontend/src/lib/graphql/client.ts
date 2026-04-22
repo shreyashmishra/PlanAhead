@@ -8,12 +8,18 @@ import type {
 const GRAPHQL_ENDPOINT =
   process.env.NEXT_PUBLIC_GO_GRAPHQL_API_URL ??
   process.env.NEXT_PUBLIC_GRAPHQL_API_URL ??
-  "http://localhost:8000/graphql";
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000/graphql" : "");
 
 async function graphqlRequest<TData>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<TData> {
+  if (!GRAPHQL_ENDPOINT) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_GRAPHQL_API_URL. Set it in Vercel before using the deployed frontend.",
+    );
+  }
+
 	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
