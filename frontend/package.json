@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@types/dagre": "^0.7.54",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "@xyflow/react": "^12.10.2",
     "clsx": "^2.1.1",
     "dagre": "^0.8.5",

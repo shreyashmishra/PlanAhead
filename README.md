@@ -110,6 +110,8 @@ Do not leave the Output Directory override set to `public` for this project. Lea
 
 If you skip that variable, the frontend will still build and load, but API-backed features will show a configuration error instead of trying to call `localhost`.
 
+To enable Vercel stats for this app, turn on both Web Analytics and Speed Insights in the Vercel dashboard, then redeploy. The frontend already includes `@vercel/analytics` and `@vercel/speed-insights`.
+
 ---
 
 ## Project structure
